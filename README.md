@@ -1,7 +1,26 @@
 # Arduino-WifiLora32-heltec
 Water tank automation  dual lora 32 
-<img width="669" height="149" alt="image" src="https://github.com/user-attachments/assets/da0ae39f-53ba-4cb8-a0e8-b004f0bae474" />
+
+
+
+
+
+
+
+
+
+
+
 <img width="291" height="248" alt="image" src="https://github.com/user-attachments/assets/6516fd7a-b17c-446e-a579-f2a418c8871b" />
+
+
+
+<img width="1080" height="864" alt="concrete-roof-installation" src="https://github.com/user-attachments/assets/92b1540f-d9f7-4b7f-ba38-5122524cf5f6" />
+<img width="1080" height="2180" alt="Screenshot_20260810_162633" src="https://github.com/user-attachments/assets/24b57b5f-6475-49c6-836e-cc71a3cff4df" />
+<img width="1254" height="1254" alt="img (3)" src="https://github.com/user-attachments/assets/be0c0dec-ec70-4c6b-9f77-2830164ca05d" />
+<img width="1024" height="1536" alt="img (2)" src="https://github.com/user-attachments/assets/1cedfdd4-d706-4c1f-b871-279b65e63edc" />
+<img width="669" height="149" alt="image" src="https://github.com/user-attachments/assets/da0ae39f-53ba-4cb8-a0e8-b004f0bae474" />
+
 
 <img width="384" height="272" alt="image" src="https://github.com/user-attachments/assets/b16aca0b-028b-44b2-a77d-375c540fec8a" />
 <img width="478" height="135" alt="image" src="https://github.com/user-attachments/assets/e3a3455c-85aa-4779-9068-bdb1be9b5a34" />
