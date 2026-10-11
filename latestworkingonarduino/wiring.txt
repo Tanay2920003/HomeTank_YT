@@ -1,0 +1,170 @@
+$ cat aquanode_wiring_FINAL_v6.txt
+
+============================================================
+ PROJECT: AquaNode / TankSync — Solar Powered LoRa Tank Node
+ BOARD: Heltec Wi-Fi LoRa 32 (V3.2) — SX1262 LoRa chip
+ SCOPE: Sensor + transmit node only. Relay/SSR/pump control
+        lives on a separate downstream unit — not wired here.
+
+ Onboard peripherals (internal, not user-wired):
+   - OLED       -> GPIO17 (SDA), GPIO18 (SCL)
+   - LoRa       -> GPIO8/9/10/11/12/13 (NSS/SCK/MOSI/MISO/RST/DIO1)
+   - VBAT sense -> GPIO1 (ADC1_CH0), formula: VBAT = 100/(100+390) * V_ADC_IN
+
+ REVISION HISTORY:
+   v1: Board powered via boosted 5V pin -> caused CP2102/USB
+       failure (external 5V fought with USB VBUS).
+   v2: Board moved to BAT connector, booster fed from CN3065
+       OUT+ directly (always-on sensor rail, separate from board).
+   v3: All 4 sensors confirmed on boosted 5V rail.
+   v4: Single switch sits between battery and board's BAT
+       connector. Booster fed from board's own 3.3V output pin —
+       sensor power is downstream of board power, one switch
+       controls everything.
+   v5: External Battery Voltage Sensor module removed entirely.
+       Board's onboard VBAT sense (GPIO1, confirmed via official
+       V3.2 datasheet) replaces it.
+   v6 (this version): Relay/SSR removed from this node's scope —
+       it lives on the separate bottom/pump unit. Added resistor
+       divider on JSN-SR04T's ECHO line to protect GPIO48 from
+       out-of-spec 5V logic level (ESP32-S3 GPIOs are officially
+       rated 3.6V max, per Espressif datasheet).
+============================================================
+
+--- POWER CHAIN (single switched path, top to bottom) ---
+
+[Solar Panel, 6V / 3W]
+    (+) ---> CN3065 SOLAR_IN+
+    (-) ---> CN3065 SOLAR_IN- / shared GND
+
+[CN3065 Solar Charge Controller Module]
+    SOLAR_IN+/- <--- Solar Panel
+    BAT+/BAT-   <--> 18650 Pack (parallel), always charging
+    (CN3065 charging is unswitched — happens regardless of
+     rocker switch position, since it only touches the battery,
+     not the board or sensor path)
+
+[18650 Battery Pack — 2x PARALLEL]
+    (+) ---> Rocker Switch terminal 1
+    (-) ---> shared GND
+
+[Rocker Switch — SPST, red, illuminated]
+    Terminal 1 <--- 18650 Pack (+)
+    Terminal 2 ---> Heltec BAT connector (+)
+    (this is the ONLY switch, gating board + everything
+     downstream — switch OFF means board and sensors are all
+     off. Charging continues either way.)
+
+[Heltec Board — BAT connector]
+    (+) <--- Rocker Switch terminal 2
+    (-) <--- shared GND
+    Onboard regulator produces:
+      - internal 3.3V for ESP32-S3/SX1262/OLED (not exposed)
+      - external 3.3V pin, rated 500mA, exposed on header
+    Onboard VBAT sense:
+      - GPIO1 (ADC1_CH0), internally wired to battery via
+        100k/390k divider — no external wiring needed
+
+[Voltage Booster — LM2698-based step-up]
+    IN+  <--- Board's 3.3V pin (exposed header)
+    IN-  <--- shared GND
+    OUT+ ---> 470uF Capacitor (+)
+    OUT- ---> shared GND
+    (Confirmed via TI datasheet: LM2698 chip operates from
+     2.2V-12V input, with 2.5V minimum documented for a near-
+     identical 3.3V-in reference design — comfortably matches
+     this input source, including low-battery scenarios)
+
+[470uF 63V Capacitor]  -- smoothing, right before sensor rail
+    (+) ---> 5V_SENSOR_RAIL
+    (-) ---> shared GND
+
+--- SIGNAL WIRING (sensors -> board GPIO) ---
+
+[JSN-SR04T Waterproof Ultrasonic Sensor]
+    TRIG  ----------------> GPIO47   (Header J2, direct — MCU
+                                       output driving into sensor,
+                                       3.3V is within sensor's spec)
+    ECHO  ---[R1: 1kΩ]---+---[R2: 2kΩ]---GND
+                          |
+                          +-------------> GPIO48   (Header J2)
+                          (divider: 5V x 2k/3k = 3.33V — brings
+                          ECHO's ~5V high level safely under the
+                          ESP32-S3's 3.6V absolute max GPIO rating)
+    VCC   ----------------> 5V_SENSOR_RAIL
+    GND   ----------------> GND
+
+[DHT22 Temp/Humidity Sensor]
+    DATA  ----------------> GPIO4    (Header J3)
+    VCC   ----------------> 5V_SENSOR_RAIL
+    GND   ----------------> GND
+
+[Solar Input Voltage Sensor Module]
+    OUT     ----------------> GPIO7    (Header J3)
+    VCC     ----------------> 5V_SENSOR_RAIL
+    GND     ----------------> GND
+    IN+/IN- ---------------- across Solar Panel output (pre-CN3065)
+
+[Battery Voltage — NO EXTERNAL HARDWARE]
+    Read directly via GPIO1 (onboard divider, no wiring needed)
+    Firmware: VBAT = 100/(100+390) * analogRead(GPIO1) [scaled
+              to actual voltage using ADC reference/resolution]
+
+--- REMOVED / OUT OF SCOPE FOR THIS NODE ---
+    [Battery Voltage Sensor Module]  -- replaced by onboard GPIO1
+    GPIO6                             -- now free
+    [Relay / SSR]                     -- belongs to separate
+                                          bottom/pump unit, not
+                                          wired on this node
+
+============================================================
+ GPIO ALLOCATION SUMMARY
+
+    GPIO1   VBAT sense (onboard, built-in)
+    GPIO4   DHT22 DATA
+    GPIO6   FREE
+    GPIO7   Solar Input Voltage Sensor OUT
+    GPIO47  JSN-SR04T TRIG
+    GPIO48  JSN-SR04T ECHO (via 1kΩ/2kΩ divider)
+    (rest)  FREE — reserved for future expansion on this node
+
+============================================================
+ POWER DOMAINS SUMMARY
+
+ ALWAYS ON (independent of switch):
+   Solar Panel -> CN3065 -> 18650 Pack   (charging only)
+
+ SWITCHED (rocker ON only — controls everything else):
+   18650 Pack -> [SWITCH] -> Heltec BAT connector -> board powers up
+                           -> Board 3.3V pin -> Booster -> Cap ->
+                              5V_SENSOR_RAIL -> DHT22, JSN-SR04T,
+                              Solar V-sensor
+                           -> GPIO1 VBAT sense active (board on)
+
+ GROUND:
+   Single common GND — solar panel, CN3065, battery pack,
+   switch, board, booster, cap, both ECHO divider resistors,
+   and all sensors tie to one shared ground.
+
+ NOTE: Battery voltage can only be read when switch is ON
+ (board powered) — same limitation as before, just without
+ the redundant external module.
+
+============================================================
+ BENCH CHECKS BEFORE FINAL ASSEMBLY
+============================================================
+  1. Confirm GPIO48 reads ~3.3V (not 5V) when ECHO pulses high
+  2. Confirm booster output holds ~5V when fed from board's 3.3V
+     pin under full sensor load, battery near 3.0V
+============================================================
+'one modification -The limitation: That 3.3V pin is "always on" whenever the rocker switch is thrown. Your JSN-SR04T and DHT22 will sit there drawing power 24 hours a day, draining your 18650s during cloudy weeks.
+
+The fix: Move the booster’s IN+ wire from the 3.3V pin to the Vext pin.
+
+The Vext pin is a special 3.3V output on the Heltec V3 that is controlled by a MOSFET inside the board. pins 3 and 4.
+
+It can easily handle the ~100mA draw required by your booster.
+
+This allows your code to use VextON() to power up the booster and sensors, take a reading, transmit via LoRa, and then call VextOFF(). The board can then go into a deep sleep drawing virtually zero current.
+
+Instead of 470uF, swap it for a 47uF to 100uF electrolytic capacitor.

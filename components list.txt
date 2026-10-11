@@ -1,0 +1,105 @@
+$ cat aquanode_easyeda_netlist.txt
+
+============================================================
+ PROJECT: AquaNode / TankSync
+ TARGET: EasyEDA Schematic Editor (Std or Pro)
+============================================================
+
+--- COMPONENT LIST (search these in EasyEDA parts library) ---
+
+REF   PART                                  EasyEDA search term
+----  ------------------------------------  -----------------------------
+U1    Heltec WiFi LoRa 32 V3 (SX1262)        "Heltec WiFi LoRa 32 V3"
+                                             (if not in lib, use generic 
+                                              ESP32-S3 module + manually 
+                                              add pin labels for 
+                                              GPIO4/6/7/47/48/5V/GND)
+U2    CN3065 Solar Charger Module            "CN3065" or generic module 
+                                             footprint, 6-pin (SOLAR_IN+/-, 
+                                              BAT+/-, OUT+/-)
+U3    LM2698 / XL6009 Boost Converter        "XL6009 boost module" 
+                                             (4-pin: IN+/IN-/OUT+/OUT-)
+U4    DHT22 Sensor                            "DHT22" (3-pin: VCC, DATA, GND)
+U5    SR04T Ultrasonic Sensor (waterproof)    "HC-SR04" footprint, relabel 
+                                              pins ECHO/TRIG/VCC/GND
+U6    Voltage Divider Module (Solar sense)    generic 3-pin module: 
+                                              OUT/VCC/GND, or draw 2 resistors 
+                                              manually (R1 top, R2 bottom, 
+                                              midpoint = OUT)
+U7    Voltage Divider Module (Battery sense)  same as U6
+SW1   SPST Rocker Switch                      "SPST switch" 2-pin
+C1    470uF 63V Electrolytic Capacitor        "470uF 63V" radial cap footprint
+BT1   18650 Li-ion Cell x2 (parallel)          "18650 holder" x2, wired 
+                                              parallel, or single "battery 
+                                              2S/2P" symbol
+PV1   Solar Panel 6V 3W                        generic 2-pin connector, 
+                                              label "SOLAR_PANEL"
+
+--- NET LIST (Net Name : Pin-to-Pin connections) ---
+
+NET: GND (single common ground - tie ALL of these together)
+    U1.GND, U2.SOLAR_IN-, U2.BAT-, U2.OUT-, U3.IN-, U3.OUT-, 
+    U4.GND, U5.GND, U6.GND, U7.GND, C1.-, BT1.-, PV1.-
+
+NET: 5V_SWITCHED  (only live when SW1 closed)
+    C1.+ -- U1.5V
+    U4.VCC -- 5V_SWITCHED
+    U5.VCC -- 5V_SWITCHED
+    U6.VCC -- 5V_SWITCHED
+    U7.VCC -- 5V_SWITCHED
+
+NET: BOOST_OUT
+    U3.OUT+ -- SW1.pin1
+
+NET: SW_TO_CAP
+    SW1.pin2 -- C1.+
+    (Note: C1.+ net = 5V_SWITCHED, same node)
+
+NET: BATT_RAIL (always-on, from CN3065 output)
+    U2.OUT+ -- U3.IN+
+    U2.OUT+ -- U7.IN+ (battery voltage sense input, HIGH side of divider)
+
+NET: BATT_TERMINALS
+    U2.BAT+ -- BT1.+
+
+NET: SOLAR_IN
+    PV1.+ -- U2.SOLAR_IN+
+
+NET: SOLAR_SENSE
+    PV1.+ -- U6.IN+  (tapped before CN3065, HIGH side of divider)
+
+NET: GPIO4_DHT
+    U1.GPIO4 -- U4.DATA
+
+NET: GPIO47_TRIG
+    U1.GPIO47 -- U5.TRIG
+
+NET: GPIO48_ECHO
+    U1.GPIO48 -- U5.ECHO
+
+NET: GPIO7_SOLARSENSE
+    U1.GPIO7 -- U6.OUT
+
+NET: GPIO6_BATTSENSE
+    U1.GPIO6 -- U7.OUT
+
+============================================================
+ IMPORT NOTES FOR EASYEDA
+============================================================
+1. Start a new Schematic project (not PCB yet) -- "Standard" mode is fine 
+   for a wiring schematic; switch to Pro only if you plan multi-sheet + BOM 
+   automation.
+2. Place U1 (Heltec board) center. If exact footprint isn't in EasyEDA's 
+   library, use a generic "Module 40-pin" placeholder and manually rename 
+   pins to match GPIO4/6/7/47/48/5V/GND -- visually it'll work fine for a 
+   wiring reference even if not DRC-accurate.
+3. Use EasyEDA's "Net Label" tool (not physical wires) for GND and 
+   5V_SWITCHED since they touch many components -- keeps the schematic 
+   readable instead of a wire tangle.
+4. Draw physical wires only for the direct signal nets (GPIO-to-sensor 
+   pins) and the power-chain sequence (Solar->CN3065->Booster->Switch->Cap).
+5. Run ERC (Electrical Rule Check) after wiring -- it'll flag any 
+   floating/unconnected pins so you catch mistakes before ordering a PCB.
+6. Once schematic is clean, use "Convert to PCB" only if you're doing a 
+   custom board; otherwise this schematic alone is enough as a build/wiring 
+   reference for perfboard assembly.
