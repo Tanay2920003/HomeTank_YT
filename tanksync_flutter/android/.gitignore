@@ -6,6 +6,7 @@ gradle-wrapper.jar
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/
+/build/
 
 # Keystore and signing files — excluded for sharing
 key.properties
